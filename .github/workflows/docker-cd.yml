@@ -1,0 +1,64 @@
+# Workflow de CD com Docker
+name: Docker CD Pipeline
+
+# Executa apenas na branch main quando há push
+on:
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - '**.md'
+      - '.gitignore'
+
+# Lista de Jobs
+jobs:
+  # Job: Build e Push da imagem Docker
+  docker-build-and-push:
+    runs-on: ubuntu-latest
+    
+    steps:
+      # Passo 1: Checkout do código
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      # Passo 2: Configurar Docker Buildx
+      - name: Configurar Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Passo 3: Login no Docker Hub
+      - name: Login no Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      # Passo 4: Extrair metadados (tags, labels) para Docker
+      - name: Extrair metadados
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ secrets.DOCKER_USERNAME }}/at1-t1-tiagodelararodrigues
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      # Passo 5: Build e Push da imagem Docker
+      - name: Build e Push da imagem Docker
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/at1-t1-tiagodelararodrigues:buildcache
+          cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/at1-t1-tiagodelararodrigues:buildcache,mode=max
+
+      # Passo 6: Exibir informações da imagem
+      - name: Exibir informações da imagem
+        run: |
+          echo "Imagem Docker criada e enviada com sucesso!"
+          echo "Tags: ${{ steps.meta.outputs.tags }}"
+          echo "Imagem: ${{ secrets.DOCKER_USERNAME }}/at1-t1-tiagodelararodrigues"
+
+
